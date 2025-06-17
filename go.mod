@@ -1,6 +1,6 @@
 module github.com/ezeql/go-pq-cdc
 
-go 1.24.4
+go 1.22.4
 
 require (
 	github.com/avast/retry-go/v4 v4.6.0
