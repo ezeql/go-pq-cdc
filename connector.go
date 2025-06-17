@@ -80,7 +80,7 @@ func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replicati
 
 	
 	logger.Debug("NewConnector: initializing logger")
-\
+
 	logger.Debug("NewConnector: creating new connection")
 	conn, err := pq.NewConnection(ctx, cfg.DSN())
 	if err != nil {
