@@ -63,53 +63,89 @@ func NewConnectorWithConfigFile(ctx context.Context, configFilePath string, list
 }
 
 func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replication.ListenerFunc) (Connector, error) {
+	logger.Debug("NewConnector: starting config setup")
 	cfg.SetDefault()
+	logger.Debug("NewConnector: config defaults set")
+	
 	if err := cfg.Validate(); err != nil {
+		logger.Debug("NewConnector: config validation failed", "error", err)
 		return nil, errors.Wrap(err, "config validation")
 	}
+	logger.Debug("NewConnector: config validated successfully")
+	
 	cfg.Print()
+	logger.Debug("NewConnector: config printed")
 
+	
+	logger.Debug("NewConnector: initializing logger")
 	logger.InitLogger(cfg.Logger.Logger)
+	logger.Debug("NewConnector: logger initialized")
 
+	logger.Debug("NewConnector: creating new connection")
 	conn, err := pq.NewConnection(ctx, cfg.DSN())
 	if err != nil {
+		logger.Debug("NewConnector: connection creation failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("NewConnector: connection created successfully")
 
+	logger.Debug("NewConnector: creating publication")
 	pub := publication.New(cfg.Publication, conn)
+	logger.Debug("NewConnector: publication created, setting replica identities")
+	
 	if err = pub.SetReplicaIdentities(ctx); err != nil {
+		logger.Debug("NewConnector: setting replica identities failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("NewConnector: replica identities set, creating publication")
+	
 	publicationInfo, err := pub.Create(ctx)
 	if err != nil {
+		logger.Debug("NewConnector: publication creation failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("NewConnector: publication created successfully")
 	logger.Info("publication", "info", publicationInfo)
 
+	logger.Debug("NewConnector: identifying system")
 	system, err := pq.IdentifySystem(ctx, conn)
 	if err != nil {
+		logger.Debug("NewConnector: system identification failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("NewConnector: system identified successfully")
 	logger.Info("system identification", "systemID", system.SystemID, "timeline", system.Timeline, "xLogPos", system.LoadXLogPos(), "database:", system.Database)
 
+	logger.Debug("NewConnector: creating metric")
 	m := metric.NewMetric(cfg.Slot.Name)
+	logger.Debug("NewConnector: metric created")
 
+	logger.Debug("NewConnector: creating replication stream")
 	stream := replication.NewStream(conn, cfg, m, &system, listenerFunc)
+	logger.Debug("NewConnector: replication stream created")
 
+	logger.Debug("NewConnector: creating slot")
 	sl, err := slot.NewSlot(ctx, cfg.DSN(), cfg.Slot, m, stream.(slot.XLogUpdater))
 	if err != nil {
+		logger.Debug("NewConnector: slot creation failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("NewConnector: slot created, creating slot info")
 
 	slotInfo, err := sl.Create(ctx)
 	if err != nil {
+		logger.Debug("NewConnector: slot info creation failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("NewConnector: slot info created successfully")
 	logger.Info("slot info", "info", slotInfo)
 
+	logger.Debug("NewConnector: creating prometheus registry")
 	prometheusRegistry := metric.NewRegistry(m)
+	logger.Debug("NewConnector: prometheus registry created")
 
-	return &connector{
+	logger.Debug("NewConnector: creating connector struct")
+	connector := &connector{
 		cfg:                &cfg,
 		system:             system,
 		stream:             stream,
@@ -119,7 +155,10 @@ func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replicati
 
 		cancelCh: make(chan os.Signal, 1),
 		readyCh:  make(chan struct{}, 1),
-	}, nil
+	}
+	logger.Debug("NewConnector: connector created successfully")
+
+	return connector, nil
 }
 
 func (c *connector) Start(ctx context.Context) {
