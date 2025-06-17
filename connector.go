@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Trendyol/go-pq-cdc/pq/timescaledb"
-
 	"github.com/Trendyol/go-pq-cdc/config"
 	"github.com/Trendyol/go-pq-cdc/internal/http"
 	"github.com/Trendyol/go-pq-cdc/internal/metric"
@@ -40,7 +38,6 @@ type connector struct {
 	slot               *slot.Slot
 	cancelCh           chan os.Signal
 	readyCh            chan struct{}
-	timescaleDB        *timescaledb.TimescaleDB
 	system             pq.IdentifySystemResult
 
 	once sync.Once
@@ -112,16 +109,6 @@ func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replicati
 
 	prometheusRegistry := metric.NewRegistry(m)
 
-	tdb, err := timescaledb.NewTimescaleDB(ctx, cfg.DSN())
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = tdb.FindHyperTables(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return &connector{
 		cfg:                &cfg,
 		system:             system,
@@ -129,7 +116,6 @@ func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replicati
 		prometheusRegistry: prometheusRegistry,
 		server:             http.NewServer(cfg, prometheusRegistry),
 		slot:               sl,
-		timescaleDB:        tdb,
 
 		cancelCh: make(chan os.Signal, 1),
 		readyCh:  make(chan struct{}, 1),
@@ -156,7 +142,6 @@ func (c *connector) Start(ctx context.Context) {
 
 	logger.Info("slot captured")
 	go c.slot.Metrics(ctx)
-	go c.timescaleDB.SyncHyperTables(ctx)
 
 	signal.Notify(c.cancelCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT)
 
