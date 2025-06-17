@@ -63,6 +63,8 @@ func NewConnectorWithConfigFile(ctx context.Context, configFilePath string, list
 }
 
 func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replication.ListenerFunc) (Connector, error) {
+	logger.InitLogger(cfg.Logger.Logger)
+ 
 	logger.Debug("NewConnector: starting config setup")
 	cfg.SetDefault()
 	logger.Debug("NewConnector: config defaults set")
@@ -78,9 +80,7 @@ func NewConnector(ctx context.Context, cfg config.Config, listenerFunc replicati
 
 	
 	logger.Debug("NewConnector: initializing logger")
-	logger.InitLogger(cfg.Logger.Logger)
-	logger.Debug("NewConnector: logger initialized")
-
+\
 	logger.Debug("NewConnector: creating new connection")
 	conn, err := pq.NewConnection(ctx, cfg.DSN())
 	if err != nil {
